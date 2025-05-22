@@ -8,26 +8,33 @@ from extract_ocr_data import ExtractOCRData
 from json_handler import parse_json
 
 class custom_llm(LLM):
+    def __init__(self, config, max_tokens):
+        super().__init__()
+        self.auth_dict = config['authentication']
+        self.model = config['llm_config']['model']
+        self.max_tokens = max_tokens
+
     @property
     def _llm_type(self):
         return 'custom'
     
-    def _call(self, prompt, model='meta-llama/llama-3.3-8b-instruct:free', stop=None):
+    def _call(
+            self, 
+            prompt, 
+            stop=None
+    ):
 
-        auth_dict = {
-            "base_url": '',
-            "api_key": ''
-        }
-        client = OpenAI(**auth_dict) 
+        client = OpenAI(**self.auth_dict) 
 
         response = client.chat.completions.create(
-            model = model,
+            model = self.model,
             messages = [
                 {
                     'role': 'user',
                     'content': f'{prompt}'
                 }
-            ]
+            ],
+            max_tokens = self.max_tokens
         )
 
         return response.choices[0].message.content
@@ -35,19 +42,18 @@ class custom_llm(LLM):
 class TriggerLLMCalls():
     def __init__(self, session_state):
         self.session_state = session_state
-        # self.auth_dict = session_state.config['authentication']
+        self.max_tokens = session_state.config['llm_config']['max_tokens']
     
-    def custom_llm_call(self, prompt, memory=None):
+    def custom_llm_call(self, prompt, max_tokens, memory=None):
 
         if memory:
             conversation = ConversationChain(
-                llm = custom_llm(),
-                # memory = self.session_state.memory
+                llm = custom_llm(self.session_state.config, max_tokens),
                 memory = memory
             )
         else:
             conversation = ConversationChain(
-                llm = custom_llm()
+                llm = custom_llm(self.session_state.config, max_tokens)
             )
 
         return conversation.predict(input=prompt)
@@ -68,11 +74,11 @@ class TriggerLLMCalls():
 
     def set_system_context(self):
         self.session_state.memory = ConversationSummaryBufferMemory(
-                                        llm=custom_llm(),
+                                        llm=custom_llm(self.session_state.config, self.max_tokens),
                                         max_token_limit=50000
                                     )
         system_prompt = self.session_state.config['prompt_library']['system_prompt']
-        response = self.custom_llm_call(system_prompt)
+        response = self.custom_llm_call(prompt=system_prompt, max_tokens=20)
 
         self.session_state.memory.save_context({'input': system_prompt}, {'output': response})
 
@@ -80,7 +86,11 @@ class TriggerLLMCalls():
         if 'image' in self.session_state:
             prompt_1 = self.session_state.config['prompt_library']['user_query']['query_nature']
             prompt_1 = prompt_1.replace("{user_query}", user_prompt)
-            response_1 = self.custom_llm_call(prompt_1, self.session_state.memory)
+            response_1 = self.custom_llm_call(
+                            prompt=prompt_1,
+                            max_tokens=10,
+                            memory=self.session_state.memory
+                        )
             response_1 = parse_json(response_1)
 
             if response_1['category'] in ['1', 1]:
@@ -89,7 +99,10 @@ class TriggerLLMCalls():
 
                 key_list = '\n'.join([f'id{i+1}. {key}' for key in self.session_state.invoice_data_json.keys()])
                 prompt_2 = prompt_2.replace("{key_list}", key_list)
-                response_2 = self.custom_llm_call(prompt_2)
+                response_2 = self.custom_llm_call(
+                                prompt=prompt_2,
+                                max_tokens=50
+                            )
                 response_2 = parse_json(response_2)
 
                 keys_req = response_2['keys_required']
@@ -97,16 +110,25 @@ class TriggerLLMCalls():
 
                 prompt_3 = self.session_state.config['prompt_library']['user_query']['final_query']
                 prompt_3 = prompt_3.replace("{user_query}", user_prompt).replace("{information}", filtered_data)
-                final_response = self.custom_llm_call(prompt_3, self.session_state.memory)
+                final_response = self.custom_llm_call(
+                                    prompt=prompt_3,
+                                    max_tokens=self.max_tokens,
+                                    memory=self.session_state.memory
+                                )
                 self.update_session_state(user_prompt, final_response)
             else:
-                final_response = self.custom_llm_call(user_prompt, self.session_state.memory)
+                final_response = self.custom_llm_call(
+                                    prompt=user_prompt,
+                                    max_tokens=self.max_tokens,
+                                    memory=self.session_state.memory
+                                )
                 self.update_session_state(user_prompt, final_response)
         else:
             final_response = self.custom_llm_call(
-                prompt=user_prompt,
-                memory=self.session_state.memory
-            )
+                                prompt=user_prompt,
+                                max_tokens=self.max_tokens,
+                                memory=self.session_state.memory
+                            )
 
             self.update_session_state(user_prompt, final_response)
 
