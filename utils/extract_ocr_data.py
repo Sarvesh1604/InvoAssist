@@ -51,13 +51,19 @@ class ExtractOCRData:
         return tables
     
     def extract_ocr_data(self):
+        '''
+        extract layout level text and table data separately
+        Return a string appending each extracted data
+        '''
         self.id_to_text = self.id_to_text_map()
         text_data = self.get_text_layout_data()
 
         ocr_data_doc = Document(self.ocr_data)
         table_data = self.get_table_data(ocr_data_doc)
-
-        return text_data, table_data
+        table_data_str = '\n\n'.join([f'TABLE {i+1} \n{table.to_markdown()}' for i, table in enumerate(table_data)])
+        
+        final_ocr_data_str = text_data + '\n\n' + table_data_str
+        return final_ocr_data_str
     
     def analyze_image(self):
         '''self.image has to be in Bytes'''
