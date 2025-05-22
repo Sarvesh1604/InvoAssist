@@ -1,6 +1,7 @@
 import json
 import yaml
 from openai import OpenAI
+from pydantic import Field
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationSummaryBufferMemory
 from langchain_core.language_models.llms import LLM
@@ -8,11 +9,8 @@ from extract_ocr_data import ExtractOCRData
 from json_handler import parse_json
 
 class custom_llm(LLM):
-    def __init__(self, config, max_tokens):
-        super().__init__()
-        self.auth_dict = config['authentication']
-        self.model = config['llm_config']['model']
-        self.max_tokens = max_tokens
+    config: dict = Field(...)
+    max_tokens: int = Field(...)
 
     @property
     def _llm_type(self):
@@ -23,18 +21,21 @@ class custom_llm(LLM):
             prompt, 
             stop=None
     ):
+        auth_dict = self.config['authentication']
+        model = self.config['llm_config']['model']
+        max_tokens = self.max_tokens
 
-        client = OpenAI(**self.auth_dict) 
+        client = OpenAI(**auth_dict)
 
         response = client.chat.completions.create(
-            model = self.model,
+            model = model,
             messages = [
                 {
                     'role': 'user',
                     'content': f'{prompt}'
                 }
             ],
-            max_tokens = self.max_tokens
+            max_tokens = max_tokens
         )
 
         return response.choices[0].message.content
@@ -45,27 +46,30 @@ class TriggerLLMCalls():
         self.max_tokens = session_state.config['llm_config']['max_tokens']
     
     def custom_llm_call(self, prompt, max_tokens, memory=None):
-
+        llm = custom_llm.model_construct(
+                config = self.session_state.config,
+                max_tokens = max_tokens
+            )
         if memory:
             conversation = ConversationChain(
-                llm = custom_llm(self.session_state.config, max_tokens),
+                llm = llm,
                 memory = memory
             )
         else:
             conversation = ConversationChain(
-                llm = custom_llm(self.session_state.config, max_tokens)
+                llm = llm
             )
 
         return conversation.predict(input=prompt)
 
     def update_session_state(self, input, output):
-        if 'messages' not in self.sesstion_state:
-            self.sesstion_state.messages = [
+        if 'messages' not in self.session_state:
+            self.session_state.messages = [
                 {'role': 'user', 'content': input},
                 {'role': 'assistant', 'content': output}
             ]
         else:
-            self.sesstion_state.messages.extend([
+            self.session_state.messages.extend([
                 {'role': 'user', 'content': input},
                 {'role': 'assistant', 'content': output}
             ])
@@ -73,8 +77,12 @@ class TriggerLLMCalls():
         self.session_state.memory.save_context({'input': input}, {'output': output})
 
     def set_system_context(self):
+        llm = custom_llm.model_construct(
+                config = self.session_state.config,
+                max_tokens = self.max_tokens
+            )
         self.session_state.memory = ConversationSummaryBufferMemory(
-                                        llm=custom_llm(self.session_state.config, self.max_tokens),
+                                        llm=llm,
                                         max_token_limit=50000
                                     )
         system_prompt = self.session_state.config['prompt_library']['system_prompt']
@@ -156,6 +164,10 @@ class TriggerLLMCalls():
         prompt = self.session_state.config['prompt_library']['get_invoice_data']
         prompt = prompt.replace("{invoice_data}", self.session_state.invoice_data_str)
                 
-        response = self.custom_llm_call(prompt)
+        response = self.custom_llm_call(prompt=prompt, max_tokens=self.max_tokens)
         self.session_state.invoice_data_json = parse_json(response)
+        
+        # for testing
+        # with open('D:/Projects/InvoAssist/test_data/llm_response_test_4.json', 'w') as f:
+        #     f.write(json.dumps(response))
         
