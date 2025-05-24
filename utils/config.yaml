@@ -4,6 +4,15 @@ authentication:
 llm_config:
   model: 'meta-llama/llama-3.3-8b-instruct:free'
   max_tokens: 4000
+embed_config:
+  model: 'sentence-transformers/all-MiniLM-l6-v2'
+  model_kwargs:
+    device: 'cpu'
+  encode_kwargs:
+    normalize_embeddings: True
+retrieval_config:
+  k: 3
+  score_threshold: 1.2
 prompt_library:
   system_prompt: |
     You are an AI assistant tasked with performing the following jobs - 
@@ -22,7 +31,8 @@ prompt_library:
     3. buyer information - name, billing address, shipping address, and any other information of the buyer
     4. purchase details - order number, details of products purchased - quantity, price, etc, warranty, grand total and 
     any other information relevant to the purchase
-    5. remarks - other important remarks that could not be covered till now
+    5. transaction currency - determine the currency used (USD, INR, etc), mention "None" if no currency information found
+    6. remarks - other important remarks that could not be covered till now
 
     Note - Your resonse has to be strictly in a json format with the following key value pairs -
 
@@ -30,52 +40,8 @@ prompt_library:
     seller_information: <nested dictionary with relevant information, empty string if no relevant information found>
     buyer_information: <nested dictionary with relevant information, empty string if no relevant information found>
     purchase_details: <nested dictionary with relevant information, empty string if no relevant information found>
+    transaction currency: <string of currency used, "None" if not found>
     remarks: <list of relevant remarks>
   user_query:
-    query_nature: |
-      Given a user query -
-
-      ------------------- start of query -------------------
-      {user_query}
-      ------------------- end of query -------------------
-
-      Identify which one of the following categories this query belongs to -
-      Type 1 - query for which more data needs to be provided
-      Type 2 - query which can be answered without any additional data
-
-      Your resonse has to be strictly in a json format with the following key value pairs -
-      category: <'1' for Type 1 or '2' for Type 2>
-
-      Note - your response must be either '1' or '2', with no additional information
-    data_filtering: |
-      Given a user query - 
-
-      ------------------- start of query -------------------
-      {user_query}
-      ------------------- end of query -------------------
-
-      Assume you have some data relevant to answering this query. The data is in key-value pair format,
-      with the following keys and their corresponding ids- 
-
-      ------------------- LIST of keys -------------------
-      {key_list}
-      ------------------- end of LIST -------------------
-
-      Identify which of these keys (one or more) and their corresponding values might be
-      helpful for you to answer the query
-      Your resonse has to be strictly in a json format with the following key value pairs -
-      keys_required: <list of key ids>
-    final_query: |
-      Given a user query - 
-
-      ------------------- start of query -------------------
-      {user_query}
-      ------------------- end of query -------------------
-
-      and some relevant information - 
-
-      ------------------- start of information -------------------
-      {information}
-      ------------------- end of information -------------------
-
-      Answer the query using the relevant information
+    prompt_with_context: |
+      <add prompt>

@@ -74,6 +74,10 @@ class ExtractOCRData:
             FeatureTypes=['TABLES', 'FORMS', 'LAYOUT']
         )
         self.ocr_data = response
+        
+        # for testing
+        # with open('D:/Projects/InvoAssist/test_data/response_test_4.json', 'w') as f:
+        #     f.write(json.dumps(response))
 
     def print_data_temp(self):
         '''function for testing, delete later'''

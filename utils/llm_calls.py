@@ -2,9 +2,13 @@ import json
 import yaml
 from openai import OpenAI
 from pydantic import Field
+from langchain.embedidngs import HuggingFaceEmbeddings
+from langchain.vectorstores import FAISS
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationSummaryBufferMemory
 from langchain_core.language_models.llms import LLM
+from langchain.schema import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from extract_ocr_data import ExtractOCRData
 from json_handler import parse_json
 
@@ -91,45 +95,44 @@ class TriggerLLMCalls():
         self.session_state.memory.save_context({'input': system_prompt}, {'output': response})
 
     def get_chat_response(self, user_prompt):
-        if 'image' in self.session_state:
-            prompt_1 = self.session_state.config['prompt_library']['user_query']['query_nature']
-            prompt_1 = prompt_1.replace("{user_query}", user_prompt)
-            response_1 = self.custom_llm_call(
-                            prompt=prompt_1,
-                            max_tokens=10,
-                            memory=self.session_state.memory
-                        )
-            response_1 = parse_json(response_1)
+        if 'invoice_data_str' in self.session_state:
+            docs_list = [Document(page_content = self.session_state.invoice_data_str)]
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=50, chunk_overlap=5)
+            docs = text_splitter.split_documents(docs_list)
 
-            if response_1['category'] in ['1', 1]:
-                prompt_2 = self.session_state.config['prompt_library']['user_query']['data_filtering']
-                prompt_2 = prompt_2.replace("{user_query}", user_prompt)
+            embeddings = HuggingFaceEmbeddings(
+                            model = self.session_state.config['embed_config']['model'],
+                            model_kwargs = self.session_state.config['embed_config']['model_kwargs'],
+                            encode_kwargs = self.session_state.config['embed_config']['encode_kwargs']
+                        ) 
 
-                key_list = '\n'.join([f'id{i+1}. {key}' for key in self.session_state.invoice_data_json.keys()])
-                prompt_2 = prompt_2.replace("{key_list}", key_list)
-                response_2 = self.custom_llm_call(
-                                prompt=prompt_2,
-                                max_tokens=50
-                            )
-                response_2 = parse_json(response_2)
+            db = FAISS.from_documents(docs, embeddings)
 
-                keys_req = response_2['keys_required']
-                filtered_data = '\n'.join([f'{self.session_state.invoice_data_json[key]}' for key in keys_req])
+            relevant_chunks = db.similarity_search_with_score(
+                query = user_prompt,
+                k = self.session_state.config['retrieval_config']['k']
+            )
 
-                prompt_3 = self.session_state.config['prompt_library']['user_query']['final_query']
-                prompt_3 = prompt_3.replace("{user_query}", user_prompt).replace("{information}", filtered_data)
+            score_threshold = self.session_state.config['retrieval_config']['score_threshold']
+            relevant_chunks = [chunks for chunks, score in relevant_chunks if score <= score_threshold]
+
+            if relevant_chunks:
+                prompt = self.session_state.config['prompt_library']['user_query']['prompt_with_context']
+                prompt = prompt.replace("{context}", '\n'.join([chunk.page_content for chunk in relevant_chunks]))
+
                 final_response = self.custom_llm_call(
-                                    prompt=prompt_3,
+                                    prompt=prompt,
                                     max_tokens=self.max_tokens,
                                     memory=self.session_state.memory
                                 )
                 self.update_session_state(user_prompt, final_response)
             else:
                 final_response = self.custom_llm_call(
-                                    prompt=user_prompt,
-                                    max_tokens=self.max_tokens,
-                                    memory=self.session_state.memory
-                                )
+                                prompt=user_prompt,
+                                max_tokens=self.max_tokens,
+                                memory=self.session_state.memory
+                            )
+
                 self.update_session_state(user_prompt, final_response)
         else:
             final_response = self.custom_llm_call(
@@ -146,16 +149,6 @@ class TriggerLLMCalls():
         considering only one image for now
         will be modifying to handle multiple images in the same session state  
         '''
-        # for testing - 
-        # extract_ocr = ExtractOCRData([])
-        # with open('D:/Projects/InvoAssist/test_data/response_test_2.json') as f:
-        #     extract_ocr.ocr_data = json.load(f)
-        # invoice_data_str = extract_ocr.extract_ocr_data()
-        # with open('D:/Projects/InvoAssist/utils/config.yaml', 'r') as file:
-        #     config = yaml.safe_load(file)
-        # prompt = config['prompt_library']['get_invoice_data']
-        # prompt = prompt.replace("{invoice_data}", invoice_data_str)
-        # return response
 
         extract_ocr = ExtractOCRData(self.session_state.image)
         extract_ocr.analyze_image()
@@ -168,6 +161,18 @@ class TriggerLLMCalls():
         self.session_state.invoice_data_json = parse_json(response)
         
         # for testing
-        # with open('D:/Projects/InvoAssist/test_data/llm_response_test_4.json', 'w') as f:
+        # with open('D:/Projects/InvoAssist/test_data/prompt.txt', 'a') as f:
+        #     for line in prompt.split('\n'):
+        #         f.write(line)
+
+        # with open('D:/Projects/InvoAssist/test_data/llm_response_test_4_v3_before_postproc.json', 'w') as f:
         #     f.write(json.dumps(response))
+        
+        # try:
+        #     self.session_state.invoice_data_json = parse_json(response)
+        #     with open('D:/Projects/InvoAssist/test_data/llm_response_test_4_v3.json', 'w') as f:
+        #         json.dump(self.session_state.invoice_data_json, f)
+        #     print("PASSED")
+        # except:
+        #     print("FAILED")
         
