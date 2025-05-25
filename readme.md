@@ -30,4 +30,4 @@ streamlit run app.py
 
 ---
 
-![UI](./intro-1.png)
+![UI](./test_data/ui_images/UI.png)
