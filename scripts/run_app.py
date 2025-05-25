@@ -44,7 +44,7 @@ if __name__=='__main__':
                         accept_multiple_files= False,
                         key= 'file_uploader'
                     )
-    if uploaded_image is not None:
+    if uploaded_image is not None and 'image' not in st.session_state:
         st.session_state.image = uploaded_image.getvalue()
         st.session_state.trigger_llm.get_invoice_data()
         sidebar.write('invoice analyzed successfully!')
