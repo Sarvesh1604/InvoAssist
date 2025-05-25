@@ -1,11 +1,10 @@
-import os
 import sys
 import yaml
+import json
+import streamlit as st
 from pathlib import Path
 
 sys.path.insert(0, f"{Path().absolute().parent.as_posix()}/utils")
-
-import streamlit as st
 from llm_calls import TriggerLLMCalls
 
 
@@ -39,12 +38,28 @@ if __name__=='__main__':
     
     sidebar = st.sidebar
     uploaded_image = sidebar.file_uploader(
-                        label= 'upload an image',
+                        label= 'upload your invoice',
                         type= ['jpg', 'png'],
                         accept_multiple_files= False,
                         key= 'file_uploader'
                     )
     if uploaded_image is not None and 'image' not in st.session_state:
-        st.session_state.image = uploaded_image.getvalue()
-        st.session_state.trigger_llm.get_invoice_data()
-        sidebar.write('invoice analyzed successfully!')
+        status = sidebar.empty()
+        status.text('')
+
+        with sidebar:
+            with st.spinner('Analyzing Image'):
+                st.session_state.image = uploaded_image.getvalue()
+                st.session_state.trigger_llm.get_invoice_data()
+            status.text('Invoice Analyzed Successfully!')
+
+    if 'invoice_data_json' in st.session_state:
+        with sidebar:
+            st.download_button(
+                label="Download Invoice Data",
+                data=json.dumps(st.session_state.invoice_data_json),
+                file_name="invoice_data.json",
+                mime='application/json',
+                icon=":material/download:",
+            )
+        display_chat()
