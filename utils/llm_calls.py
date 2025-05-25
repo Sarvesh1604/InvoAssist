@@ -101,7 +101,7 @@ class TriggerLLMCalls():
             docs = text_splitter.split_documents(docs_list)
 
             embeddings = HuggingFaceEmbeddings(
-                            model = self.session_state.config['embed_config']['model'],
+                            model_name = self.session_state.config['embed_config']['model'],
                             model_kwargs = self.session_state.config['embed_config']['model_kwargs'],
                             encode_kwargs = self.session_state.config['embed_config']['encode_kwargs']
                         ) 
@@ -127,17 +127,21 @@ class TriggerLLMCalls():
                                     memory=self.session_state.memory
                                 )
             else:
-                prompt = self.session_state.config['prompt_library']['user_query']['general_query']
+                prompt = self.session_state.config['prompt_library']['user_query']['query_with_context']
                 prompt = prompt.replace("{user_query}", user_prompt)
+                prompt = prompt.replace("{context}", self.session_state.invoice_data_str)
 
                 final_response = self.custom_llm_call(
-                                prompt=user_prompt,
+                                prompt=prompt,
                                 max_tokens=self.max_tokens,
                                 memory=self.session_state.memory
                             )
         else:
+            prompt = self.session_state.config['prompt_library']['user_query']['general_query']
+            prompt = prompt.replace("{user_query}", user_prompt)
+
             final_response = self.custom_llm_call(
-                                prompt=user_prompt,
+                                prompt=prompt,
                                 max_tokens=self.max_tokens,
                                 memory=self.session_state.memory
                             )
@@ -154,26 +158,9 @@ class TriggerLLMCalls():
         extract_ocr = ExtractOCRData(self.session_state.image)
         extract_ocr.analyze_image()
         self.session_state.invoice_data_str = extract_ocr.extract_ocr_data()
-                
+
         prompt = self.session_state.config['prompt_library']['get_invoice_data']
         prompt = prompt.replace("{invoice_data}", self.session_state.invoice_data_str)
-                
+
         response = self.custom_llm_call(prompt=prompt, max_tokens=self.max_tokens)
         self.session_state.invoice_data_json = parse_json(response)
-        
-        # for testing
-        # with open('D:/Projects/InvoAssist/test_data/prompt.txt', 'a') as f:
-        #     for line in prompt.split('\n'):
-        #         f.write(line)
-
-        # with open('D:/Projects/InvoAssist/test_data/llm_response_test_4_v3_before_postproc.json', 'w') as f:
-        #     f.write(json.dumps(response))
-        
-        # try:
-        #     self.session_state.invoice_data_json = parse_json(response)
-        #     with open('D:/Projects/InvoAssist/test_data/llm_response_test_4_v3.json', 'w') as f:
-        #         json.dump(self.session_state.invoice_data_json, f)
-        #     print("PASSED")
-        # except:
-        #     print("FAILED")
-        
