@@ -43,5 +43,19 @@ prompt_library:
     transaction currency: <string of currency used, "None" if not found>
     remarks: <list of relevant remarks>
   user_query:
-    prompt_with_context: |
-      <add prompt>
+    general_query: |
+      {user_query}
+      Answer in brief, providing only the information that is asked
+    query_with_context: |
+      Given a user query -
+
+      ------------------- start of query -------------------
+      {user_query}
+      ------------------- end of query -------------------
+
+      and additional supporting data that might be helpful in answering the query -
+
+      ------------------- start of data -------------------
+      {context}
+      ------------------- end of data -------------------
+      Answer the query in brief, providing only the information that is asked

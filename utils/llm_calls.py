@@ -2,15 +2,15 @@ import json
 import yaml
 from openai import OpenAI
 from pydantic import Field
-from langchain.embedidngs import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationSummaryBufferMemory
-from langchain_core.language_models.llms import LLM
-from langchain.schema import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from extract_ocr_data import ExtractOCRData
 from json_handler import parse_json
+from langchain.schema import Document
+from langchain.vectorstores import FAISS
+from extract_ocr_data import ExtractOCRData
+from langchain.chains import ConversationChain
+from langchain_core.language_models.llms import LLM
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.memory import ConversationSummaryBufferMemory
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 class custom_llm(LLM):
     config: dict = Field(...)
@@ -117,7 +117,8 @@ class TriggerLLMCalls():
             relevant_chunks = [chunks for chunks, score in relevant_chunks if score <= score_threshold]
 
             if relevant_chunks:
-                prompt = self.session_state.config['prompt_library']['user_query']['prompt_with_context']
+                prompt = self.session_state.config['prompt_library']['user_query']['query_with_context']
+                prompt = prompt.replace("{user_query}", user_prompt)
                 prompt = prompt.replace("{context}", '\n'.join([chunk.page_content for chunk in relevant_chunks]))
 
                 final_response = self.custom_llm_call(
@@ -125,15 +126,15 @@ class TriggerLLMCalls():
                                     max_tokens=self.max_tokens,
                                     memory=self.session_state.memory
                                 )
-                self.update_session_state(user_prompt, final_response)
             else:
+                prompt = self.session_state.config['prompt_library']['user_query']['general_query']
+                prompt = prompt.replace("{user_query}", user_prompt)
+
                 final_response = self.custom_llm_call(
                                 prompt=user_prompt,
                                 max_tokens=self.max_tokens,
                                 memory=self.session_state.memory
                             )
-
-                self.update_session_state(user_prompt, final_response)
         else:
             final_response = self.custom_llm_call(
                                 prompt=user_prompt,
@@ -141,7 +142,7 @@ class TriggerLLMCalls():
                                 memory=self.session_state.memory
                             )
 
-            self.update_session_state(user_prompt, final_response)
+        self.update_session_state(user_prompt, final_response)
 
     def get_invoice_data(self):
         '''

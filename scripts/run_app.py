@@ -48,4 +48,3 @@ if __name__=='__main__':
         st.session_state.image = uploaded_image.getvalue()
         st.session_state.trigger_llm.get_invoice_data()
         sidebar.write('invoice analyzed successfully!')
-
