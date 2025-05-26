@@ -18,6 +18,21 @@ cd InvoAssist
 # Install dependencies
 pip install -r requirements.txt
 ```
+### AWS Set-up
+1. Download and Install AWS CLI V2 - [https://awscli.amazonaws.com/AWSCLIV2.msi]
+
+2. Configure AWS CLI with your IAM user credentials
+    ```sh
+        aws configure
+    ```
+    ```sh
+        AWS Access Key ID [None]: YOUR_ACCESS_KEY_ID
+        AWS Secret Access Key [None]: YOUR_SECRET_ACCESS_KEY
+        Default region name [None]: ap-south-1       # Or your preferred AWS region
+    ```
+### OpenRouter Setup
+This project uses OpenRouter's API. You can get an API key by creating an account with [OpenRouter](https://openrouter.ai/) and plug it in 'utils/config.yaml'
+
 ---
 
 ## 🚀 Usage
