@@ -12,13 +12,14 @@ st.set_page_config(page_title='InvoAssist', page_icon='', layout='centered')
 st.title("InvoAssist")
 
 def display_chat():
-    for dict_ in st.session_state.messages:
-        if dict_['role'] == 'user':
-            user_input = st.chat_message('user')
-            user_input.write(dict_['content'])
-        else:
-            assistant_output = st.chat_message('assistant')
-            assistant_output.write(dict_['content'])
+    if 'messages' in st.session_state:
+        for dict_ in st.session_state.messages:
+            if dict_['role'] == 'user':
+                user_input = st.chat_message('user')
+                user_input.write(dict_['content'])
+            else:
+                assistant_output = st.chat_message('assistant')
+                assistant_output.write(dict_['content'])
 
 if __name__=='__main__':
 
@@ -34,7 +35,6 @@ if __name__=='__main__':
 
     if user_prompt:
         st.session_state.trigger_llm.get_chat_response(user_prompt)
-        display_chat()
     
     sidebar = st.sidebar
     uploaded_image = sidebar.file_uploader(
@@ -62,4 +62,4 @@ if __name__=='__main__':
                 mime='application/json',
                 icon=":material/download:",
             )
-        display_chat()
+    display_chat()
